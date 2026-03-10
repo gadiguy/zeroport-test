@@ -7,7 +7,7 @@ A Python CLI tool that fetches a Wikipedia population table, downloads country f
 - **Python** 3.11+
 - **requests** — HTTP requests to fetch the target URL
 - **beautifulsoup4** — HTML parsing and table extraction
-- **aiohttp** / **asyncio** — asynchronous flag image downloads
+- **requests.Session** — sequential flag image downloads with exponential backoff
 - **python-dotenv** — loading environment variables from `.env`
 - **pytest** — unit testing
 
@@ -75,29 +75,35 @@ python main.py --min_population 5000000 --html-output output.html
 | Argument          | Type  | Description                                              |
 |-------------------|-------|----------------------------------------------------------|
 | `--min_population`| `int` | Only include countries with population >= this value     |
-| `--html_output`   | `str` | Path to write HTML output file; skips stdout if provided |
+| `--html-output`   | `str` | Path to write HTML output file; skips stdout if provided |
 
 ## Data Model
 
 Each country entry contains:
 
-| Field                    | Description                              |
-|--------------------------|------------------------------------------|
-| `country_name`           | Name of the country or dependency        |
-| `population`             | Population as an integer                 |
-| `date_of_data`           | Date string as listed in the source table|
-| `flag_path`              | Local file path to the downloaded flag   |
+| Field           | Description                                              |
+|-----------------|----------------------------------------------------------|
+| `country_name`  | Name of the country or dependency                        |
+| `population`    | Population as an integer                                 |
+| `date_of_data`  | Date string as listed in the source table                |
+| `flag_url`      | Absolute source URL of the flag image (used for hashing) |
+| `flag_path`     | Local file path after download; `None` if download failed|
+| `flag_error`    | Short reason string if download failed; absent on success|
 
 - Countries are sorted by `population` descending before output.
 - If a country appears more than once in the source table, it is listed multiple times.
 
 ## Flag Images
 
-- Downloaded asynchronously after table parsing completes.
+- Downloaded **sequentially** using a single `requests.Session` after table parsing completes.
+- **Do not use `aiohttp`** — Wikimedia's CDN returns HTTP 429 for all `aiohttp` requests regardless of headers, due to TLS/HTTP2 fingerprint detection.
+- **Do not use concurrent/parallel downloads** — Wikimedia's CDN rate-limits per cache node. Even 2 concurrent requests reliably trigger 429 on that node. Sequential downloads avoid this entirely.
+- A **0.5 s inter-request pause** is inserted between each download to stay polite.
+- **Exponential backoff on 429**: on a rate-limit response, wait 5 s and retry; if still 429, wait 10 s, then 20 s, then 40 s (4 retries max). This handles transient node-level rate limits that may occur even with sequential downloads.
 - Storage directory is set by `FLAG_IMAGES_DIR` in `.env` (default: `./flag_images`); created at runtime if it does not exist.
 - Filenames are globally unique and derived by slugifying the country name and appending an 8-character MD5 hex digest of the source image URL: `<slug>_<hash>.<ext>` (e.g. `united_kingdom_a3f2c1d4.png`). This prevents collisions between countries with similar names and between runs against different source URLs.
-- The local file path is included in both console and HTML output.
-- If a flag download fails, log a warning and leave `flag_path` as `None`; do not abort the run.
+- Existing files are not re-downloaded (idempotent re-runs).
+- If a download ultimately fails after all retries, `flag_path` is left as `None` and `flag_error` is set to a short human-readable reason (e.g. `HTTP 429`, `timed out`, `connection error: ...`). The reason is shown inline in both console and HTML output; the run is never aborted.
 
 ## Output Formats
 
@@ -111,6 +117,19 @@ A self-contained HTML file containing:
 
 - A styled `<table>` with columns: Country, Population, Date of Data, Flag (inline `<img>` tag referencing the local flag path).
 - Written to the path provided by `--html-output`.
+
+## Wikipedia Table Structure
+
+The page uses a `wikitable`-classed table with the following **confirmed** column layout (verified against the live page):
+
+- **col 0 — Location**: Contains `<span class="flagicon">` with a flag `<img>` inside an `<a>`, followed by a separate text `<a>` for the country name. The flag `<a>` has no text; the country name `<a>` has no `<img>`.
+- **col 1 — Population**: Comma-formatted integer string (e.g. `1,417,492,000`).
+- **col 2 — % of world**: Ignored.
+- **col 3 — Date**: Date string as-is (e.g. `1 Jul 2025`).
+- **col 4 — Source**: Ignored.
+- **col 5 — Notes**: Ignored.
+
+There is **no Rank column**. Flag image `src` values are protocol-relative (`//upload.wikimedia.org/...`) and must be prefixed with `https:`. The first data row is a "World" total row and passes through the parser (it has a valid population but no flag image).
 
 ## Error Handling
 
