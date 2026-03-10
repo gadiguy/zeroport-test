@@ -64,10 +64,10 @@ python main.py
 python main.py --min_population 1000000
 
 # Write output as an HTML file
-python main.py --html-output output.html
+python main.py --html_output output.html
 
 # Combine both flags
-python main.py --min_population 5000000 --html-output output.html
+python main.py --min_population 5000000 --html_output output.html
 ```
 
 ## CLI Arguments
@@ -75,7 +75,7 @@ python main.py --min_population 5000000 --html-output output.html
 | Argument          | Type  | Description                                              |
 |-------------------|-------|----------------------------------------------------------|
 | `--min_population`| `int` | Only include countries with population >= this value     |
-| `--html-output`   | `str` | Path to write HTML output file; skips stdout if provided |
+| `--html_output`   | `str` | Path to write HTML output file; skips stdout if provided |
 
 ## Data Model
 
@@ -111,12 +111,12 @@ Each country entry contains:
 
 Tabular text output with columns: `Country`, `Population`, `Date of Data`, `Flag Path`.
 
-### HTML (`--html-output`)
+### HTML (`--html_output`)
 
 A self-contained HTML file containing:
 
 - A styled `<table>` with columns: Country, Population, Date of Data, Flag (inline `<img>` tag referencing the local flag path).
-- Written to the path provided by `--html-output`.
+- Written to the path provided by `--html_output`.
 
 ## Wikipedia Table Structure
 

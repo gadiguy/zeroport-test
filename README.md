@@ -50,10 +50,10 @@ python main.py
 python main.py --min_population 50000000
 
 # Write output as an HTML file
-python main.py --html-output output.html
+python main.py --html_output output.html
 
 # Combine both options
-python main.py --min_population 10000000 --html-output output.html
+python main.py --min_population 10000000 --html_output output.html
 ```
 
 ### CLI Arguments
@@ -61,7 +61,7 @@ python main.py --min_population 10000000 --html-output output.html
 | Argument            | Type  | Description                                               |
 |---------------------|-------|-----------------------------------------------------------|
 | `--min_population`  | `int` | Only include countries with population >= this value      |
-| `--html-output`     | `str` | Write HTML output to this file path instead of stdout     |
+| `--html_output`     | `str` | Write HTML output to this file path instead of stdout     |
 
 ### Console Output Example
 

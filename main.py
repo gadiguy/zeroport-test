@@ -34,7 +34,7 @@ def _parse_args() -> argparse.Namespace:
 
     # Optional HTML output path; if omitted, output goes to stdout
     parser.add_argument(
-        "--html-output",
+        "--html_output",
         type=str,
         default=None,
         metavar="FILE",
