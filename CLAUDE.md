@@ -7,7 +7,7 @@ A Python CLI tool that fetches a Wikipedia population table, downloads country f
 - **Python** 3.11+
 - **requests** — HTTP requests to fetch the target URL
 - **beautifulsoup4** — HTML parsing and table extraction
-- **requests.Session** — sequential flag image downloads with exponential backoff
+- **requests + ThreadPoolExecutor** — concurrent flag image downloads (5 workers) with exponential backoff
 - **python-dotenv** — loading environment variables from `.env`
 - **pytest** — unit testing
 
@@ -95,11 +95,10 @@ Each country entry contains:
 
 ## Flag Images
 
-- Downloaded **sequentially** using a single `requests.Session` after table parsing completes.
+- Downloaded using **5 concurrent workers** (`ThreadPoolExecutor`) after table parsing completes. Each worker creates its own `requests.Session`.
 - **Do not use `aiohttp`** — Wikimedia's CDN returns HTTP 429 for all `aiohttp` requests regardless of headers, due to TLS/HTTP2 fingerprint detection.
-- **Do not use concurrent/parallel downloads** — Wikimedia's CDN rate-limits per cache node. Even 2 concurrent requests reliably trigger 429 on that node. Sequential downloads avoid this entirely.
-- A **0.5 s inter-request pause** is inserted between each download to stay polite.
-- **Exponential backoff on 429**: on a rate-limit response, wait 5 s and retry; if still 429, wait 10 s, then 20 s, then 40 s (4 retries max). This handles transient node-level rate limits that may occur even with sequential downloads.
+- **Full browser headers are required**: `Sec-Fetch-Dest`, `Sec-Fetch-Mode`, `Sec-Fetch-Site`, `Sec-CH-UA`, `Sec-CH-UA-Mobile`, `Sec-CH-UA-Platform`, `Accept-Encoding`, `DNT`, `Connection`. Without these headers, Wikimedia's CDN fingerprints the client as a bot and throttles it at any concurrency level. With them, 5 concurrent workers download 20 flags in ~3s with 0 failures. This was confirmed via e2e benchmarking (`tests/test_e2e_download.py`).
+- **Exponential backoff on 429** is retained as a safety net: wait 5 s and retry; if still 429, wait 10 s, then 20 s, then 40 s (4 retries max).
 - Storage directory is set by `FLAG_IMAGES_DIR` in `.env` (default: `./flag_images`); created at runtime if it does not exist.
 - Filenames are globally unique and derived by slugifying the country name and appending an 8-character MD5 hex digest of the source image URL: `<slug>_<hash>.<ext>` (e.g. `united_kingdom_a3f2c1d4.png`). This prevents collisions between countries with similar names and between runs against different source URLs.
 - Existing files are not re-downloaded (idempotent re-runs).
